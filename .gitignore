@@ -1,0 +1,14 @@
+# OS / editor detritus
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Local working files
+*.bak
+*.backup-*
+*.tmp
+tmp/

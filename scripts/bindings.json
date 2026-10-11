@@ -1,0 +1,8 @@
+{
+  "$schema": "./agent-soul-bindings.schema.json",
+  "_comment": "Maps pi-subagents agent types to soul names. Resolution order: (1) agent .md frontmatter `soul:` field, (2) this file by agent type, (3) default `$session` (no swap — agent inherits the session's active soul, e.g. Odin). The `$session` sentinel is a literal string meaning 'no swap'.",
+  "general-purpose": "$session",
+  "Explore": "explorer",
+  "Plan": "planner",
+  "researcher": "researcher"
+}
