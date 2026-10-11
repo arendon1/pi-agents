@@ -21,6 +21,18 @@ SOULS_DIR="${SOULS_DIR:-$HOME/.pi/agent/souls}"
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 SUFFIX=$(date +%s | tail -c 6)
 
+# By default, do not overwrite existing soul instances. Soul data is
+# precious; re-running create-souls.sh on an existing device should be
+# a no-op, not a reset. Pass --force to recreate (clobbering the
+# existing identity, memories, and state).
+FORCE=0
+for arg in "$@"; do
+	case "$arg" in
+		--force) FORCE=1 ;;
+		*) echo "unknown argument: $arg" >&2; exit 2 ;;
+	esac
+done
+
 create_soul() {
   local name="$1"
   local archetype="$2"
@@ -28,6 +40,11 @@ create_soul() {
   local values_json="$4"
   local dir="$SOULS_DIR/$name.soul"
   local did_suffix=$(printf '%s-%s' "$name" "$SUFFIX" | head -c 16)
+
+  if [[ -d "$dir" && "$FORCE" != "1" ]]; then
+    echo "Skipped $dir (already exists; pass --force to recreate)"
+    return 0
+  fi
 
   mkdir -p "$dir/memory"
 

@@ -10,7 +10,8 @@
 # Usage:
 #   bash install.sh                      # dry run (default — prints, writes nothing)
 #   bash install.sh --apply              # perform the install
-#   bash install.sh --with-souls         # also run scripts/create-souls.sh to create the soul instances
+#   bash install.sh --with-souls         # also run scripts/create-souls.sh to create the soul instances (skip existing)
+#   bash install.sh --with-souls-force   # same, but recreate any existing soul (clobbers state)
 #   bash install.sh --with-bindings      # also install scripts/bindings.json to the souls dir
 #   bash install.sh --target DIR         # install to DIR instead of $HOME/.pi/agent
 #   bash install.sh --source DIR         # read from DIR instead of the repo root
@@ -20,11 +21,13 @@
 #   * dry-run by default — pass --apply to make changes
 #   * only managed files are touched; everything else is left alone
 #   * each step prints OK / DIFF / NEW / FAIL
+#   * create-souls.sh skips existing souls unless --with-souls-force
 
 set -euo pipefail
 
 APPLY=0
 WITH_SOULS=0
+FORCE_SOULS=0
 WITH_BINDINGS=0
 SOURCE=""
 TARGET=""
@@ -34,6 +37,7 @@ while [[ $# -gt 0 ]]; do
 		--apply) APPLY=1; shift ;;
 		--dry-run) APPLY=0; shift ;;
 		--with-souls) WITH_SOULS=1; shift ;;
+		--with-souls-force) WITH_SOULS=1; FORCE_SOULS=1; shift ;;
 		--with-bindings) WITH_BINDINGS=1; shift ;;
 		--source)
 			[[ $# -ge 2 ]] || { echo "--source needs a directory" >&2; exit 2; }
@@ -56,7 +60,6 @@ for marker in agents extensions scripts; do
 done
 
 # Managed file map: "source_path -> target_path" pairs.
-# Order matters only for human readability; the install is order-independent.
 declare -A FILES=(
 	["$SOURCE/agents/explore.md"]="$TARGET/agents/explore.md"
 	["$SOURCE/agents/plan.md"]="$TARGET/agents/plan.md"
@@ -76,11 +79,11 @@ echo "==> installing pi-agents"
 echo "    source:  $SOURCE"
 echo "    target:  $TARGET"
 echo "    mode:    $([[ "$APPLY" == "1" ]] && echo APPLY || echo 'DRY RUN (pass --apply to write)')"
-echo "    extras:  souls=$WITH_SOULS bindings=$WITH_BINDINGS"
+echo "    extras:  souls=$WITH_SOULS souls-force=$FORCE_SOULS bindings=$WITH_BINDINGS"
 echo
 
-# Compute the diff table first so the dry-run output is the same as the
-# apply output, and so we can show the user what would change.
+# Compute the diff table first so dry-run output == apply output, and we
+# can show the user what would change before committing to write.
 declare -a CHANGES=()
 for src in "${!FILES[@]}"; do
 	dst="${FILES[$src]}"
@@ -97,10 +100,8 @@ for src in "${!FILES[@]}"; do
 	fi
 done
 
-# Print changes.
 printf '%s\n' "${CHANGES[@]}" | sort
 
-# Counters.
 new_count=$(printf '%s\n' "${CHANGES[@]}" | grep -c '^NEW' || true)
 diff_count=$(printf '%s\n' "${CHANGES[@]}" | grep -c '^DIFF' || true)
 fail_count=$(printf '%s\n' "${CHANGES[@]}" | grep -c '^FAIL' || true)
@@ -111,7 +112,7 @@ echo "==> summary: new=$new_count diff=$diff_count fail=$fail_count"
 if [[ "$fail_count" != "0" ]]; then
 	echo "error: source files are missing; aborting" >&2
 	exit 1
-fi
+	fi
 
 if [[ "$APPLY" != "1" ]]; then
 	echo "==> dry run complete; nothing was written (pass --apply to install)"
@@ -131,11 +132,14 @@ done
 # Permissions: create-souls.sh must be executable.
 [[ "$WITH_SOULS" == "1" ]] && chmod +x "$HOME/create-souls.sh"
 
-# If --with-souls, run create-souls.sh to instantiate the four soul dirs.
+# If --with-souls, run create-souls.sh. It is idempotent by default and
+# will skip existing souls; --with-souls-force passes --force through.
 if [[ "$WITH_SOULS" == "1" ]]; then
 	echo
 	echo "==> running create-souls.sh"
-	bash "$HOME/create-souls.sh"
+	SOUL_ARGS=()
+	[[ "$FORCE_SOULS" == "1" ]] && SOUL_ARGS+=(--force)
+	bash "$HOME/create-souls.sh" "${SOUL_ARGS[@]}"
 fi
 
 echo
